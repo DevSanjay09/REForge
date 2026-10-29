@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>RegForge PoC: Circular to Live Rule</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f7f9;--card:#fff;--tx:#1b1f26;--mu:#5d6675;--bd:#dde1e8;--ac:#1f5fd6;--ok:#17803d;--bad:#c62828;--wn:#a15c00;--code:#0f1722;--cf:#d6e4ff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10141b;--card:#171d27;--tx:#e8ecf2;--mu:#98a2b3;--bd:#2a3342;--ac:#6aa0ff;--ok:#4cc77a;--bad:#ff7a7a;--wn:#f0b45a;--code:#0a0e14;--cf:#d6e4ff}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:16px 20px;border-bottom:1px solid var(--bd);background:var(--card)}
+h1{margin:0;font-size:20px}header p{margin:4px 0 0;color:var(--mu);font-size:13px}
+.wrap{display:grid;grid-template-columns:230px 1fr;gap:16px;padding:16px 20px;max-width:1200px;margin:auto}
+@media(max-width:800px){.wrap{grid-template-columns:1fr}}
+nav{display:flex;flex-direction:column;gap:6px}
+nav button{text-align:left;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;font-size:13px;cursor:pointer}
+nav button.on{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}nav button.done::before{content:"✓ ";color:var(--ok)}nav button:disabled{opacity:.45;cursor:default}
+@media(max-width:800px){nav{flex-direction:row;overflow-x:auto}nav button{white-space:nowrap}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:14px;overflow-x:auto}
+.card h2{margin:0 0 4px;font-size:17px}.ag{color:var(--ac);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--bd);padding:6px 8px;text-align:left;vertical-align:top}th{color:var(--mu);font-weight:600}
+pre{background:var(--code);color:var(--cf);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;margin:8px 0}
+.b{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--bd)}.ok{color:var(--ok);border-color:var(--ok)}.bad{color:var(--bad);border-color:var(--bad)}.wn{color:var(--wn);border-color:var(--wn)}
+.btn{background:var(--ac);color:#fff;border:0;padding:9px 16px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}.btn.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}.btn.red{background:var(--bad)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--bd);border-radius:10px;padding:10px}.kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mu)}
+#log{font-size:12.5px;max-height:220px;overflow:auto}#log div{padding:3px 0;border-bottom:1px dashed var(--bd)}#log i{color:var(--ac);font-style:normal;font-weight:600}
+.mu{color:var(--mu);font-size:13px}
+</style></head><body>
+<header><h1>RegForge: Circular → Live Rule (PoC)</h1>
+<p>Multi-agent pipeline over A2A messages. All data is synthetic; the circular below is an illustrative example, not an actual regulator text.</p></header>
+<div class="wrap"><nav id="nav"></nav><main><div id="main"></div>
+<div class="card"><div class="ag">A2A message log</div><div id="log"></div></div></main></div>
+<script>
+const $=s=>document.querySelector(s);
+const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+function gen(n,seed,fault){const r=rng(seed),o=[];for(let i=0;i<n;i++){const u=r(),cat=u<.7?'individual':u<.92?'merchant':'govt',acct=r()<.88?'individual':'corporate';
+let amt=Math.round(Math.exp(7+r()*4.2));if(r()<.06)amt*=3;const p=cat=='individual'?.14:cat=='merchant'?.3:.05;let age=r()<p?r()*24:24+r()*5000;
+const cum=age<24?amt+(r()<.15?r()*250000:0):0;if(fault&&r()<.6)age=0;
+const risky=cat=='individual'&&acct=='individual'&&age<24&&amt>50000&&r()<.35;o.push({id:'T'+(100000+i),amt,cat,acct,age,cum,risky})}return o}
+const R={A1:t=>t.amt>50000&&t.age<24,A2:t=>t.amt>50000&&t.age<24&&t.cat=='individual'&&t.acct=='individual',B:t=>t.cum>200000&&t.cat=='individual'&&t.acct=='individual'};
+const V2=t=>R.A2(t)||R.B(t),V1=t=>R.A1(t)||R.B(t);
+const ex=t=>t.cat!='individual'||t.acct!='individual';
+function M(d,f){const h=d.filter(f),rk=d.filter(t=>t.risky).length,cg=h.filter(t=>t.risky).length;return{n:d.length,h:h.length,rate:h.length/d.length,ex:h.filter(ex).length,rec:rk?cg/rk:0,prec:h.length?cg/h.length:0,ids:h.slice(0,3).map(t=>t.id)}}
+const pc=x=>(x*100).toFixed(1)+'%',inr=x=>'₹'+x.toLocaleString('en-IN');
+const D=gen(12000,7,false);let S={step:0,max:0,approved:false};
+const L=(f,t,m)=>{$('#log').insertAdjacentHTML('afterbegin',`<div><i>${f} → ${t}</i>: ${m}</div>`)};
+const kp=(a,b)=>`<div class="kpi"><b>${a}</b><span>${b}</span></div>`;
+const stages=[
+{n:'1 Circular Intake',a:'Intake & Applicability Agent',run(){L('Orchestrator','Intake','Process SYN/REG/2026/14');L('Intake','Orchestrator','5 clauses parsed; 4 applicable to Sample Bank profile; 1 not applicable');
+return `<p class="mu">Illustrative circular SYN/REG/2026/14: <i>Enhanced Verification for High-Value Digital Transfers</i>. Bank profile: Scheduled commercial bank, retail digital channels.</p>
+<table><tr><th>Clause</th><th>Text (summary)</th><th>Applies?</th></tr>
+<tr><td>C1</td><td>Additional authentication for digital transfers above ₹50,000 to a beneficiary added less than 24 hours ago</td><td><span class="b ok">Yes</span></td></tr>
+<tr><td>C2</td><td>Hold for review when cumulative 24h transfers to new beneficiaries exceed ₹2,00,000</td><td><span class="b ok">Yes</span></td></tr>
+<tr><td>C3</td><td>Scope: individual customer accounts. Exempt: government payments and registered merchants</td><td><span class="b ok">Yes</span></td></tr>
+<tr><td>C4</td><td>Quarterly summary of held transactions to the regulator</td><td><span class="b ok">Yes (reporting)</span></td></tr>
+<tr><td>C5</td><td>Phased timeline for co-operative banks</td><td><span class="b bad">No: not our bank type</span></td></tr></table>`}},
+{n:'2 Obligation Extraction',a:'Obligation Extraction Agent',run(){L('Extraction','Registry','Wrote 4 obligations O1–O4 with clause IDs');
+return `<table><tr><th>ID</th><th>Obligation</th><th>Type</th><th>Source</th><th>Conf.</th></tr>
+<tr><td>O1</td><td>Step-up authentication: amount &gt; ₹50,000 and beneficiary age &lt; 24h</td><td>Rule</td><td>C1</td><td>0.96</td></tr>
+<tr><td>O2</td><td>Hold: new-beneficiary 24h cumulative &gt; ₹2,00,000</td><td>Rule</td><td>C2</td><td>0.94</td></tr>
+<tr><td>O3</td><td>Scope limit: individual accounts only; exempt govt and registered merchants</td><td>Scope constraint</td><td>C3</td><td>0.91</td></tr>
+<tr><td>O4</td><td>Quarterly held-transaction report</td><td>Policy / report</td><td>C4</td><td>0.89</td></tr></table>
+<p class="mu">Stored in the obligation registry. Each entry keeps its clause reference for traceability.</p>`}},
+{n:'3 Policy Mapping',a:'Policy Mapping Agent',run(){L('Mapping','Authoring','O1,O2 need new rules; R-101 overlaps O1. O4 routed to policy owner');
+return `<table><tr><th>Obligation</th><th>Internal policy</th><th>Existing rule</th><th>Action</th></tr>
+<tr><td>O1</td><td>Payments Security Policy §4.2</td><td>R-101 (OTP above ₹1,00,000, any beneficiary)</td><td><span class="b wn">New rule A; R-101 unchanged</span></td></tr>
+<tr><td>O2</td><td>Fraud Velocity Policy §2.7</td><td>R-214 (hold above ₹5,00,000/day)</td><td><span class="b wn">New rule B</span></td></tr>
+<tr><td>O3</td><td>Customer Segmentation Standard §1.3</td><td>Segment tags in rule repo</td><td><span class="b ok">Apply as scope on A and B</span></td></tr>
+<tr><td>O4</td><td>Regulatory Reporting SOP §6</td><td>None (not a transaction rule)</td><td><span class="b">Route to compliance owner</span></td></tr></table>`}},
+{n:'4 Rule Authoring',a:'Rule Authoring Agent',run(){L('Authoring','Backtest','Draft v1 of rules A and B (draft-only)');
+return `<p class="mu">Draft rules in the rule DSL. Nothing is deployed.</p><pre>RULE A_NEW_BENEFICIARY_STEPUP  v1  (O1 ← C1)
+WHEN  txn.amount &gt; 50000
+  AND beneficiary.age_hours &lt; 24
+THEN  require(step_up_auth)
+
+RULE B_NEW_BENEFICIARY_VELOCITY  v1  (O2 ← C2, scope O3 ← C3)
+WHEN  acct.type == "individual" AND beneficiary.category == "individual"
+  AND sum_24h(txn.amount, new_beneficiaries) &gt; 200000
+THEN  hold_for_review()</pre><p class="mu">Note: draft A v1 has no scope clause. The Rule Authoring Agent is working from O1 alone.</p>`}},
+{n:'5 Backtesting',a:'Backtest Agent (A2A objection loop)',run(){const a=M(D,R.A1),b=M(D,R.A2);S.a1=a;S.a2=a=b;S.v1=M(D,V1);S.v2=M(D,V2);
+L('Backtest','Authoring','OBJECTION: A v1 would hold '+S.v1.ex+' transactions in exempt categories (violates O3/C3). Redraft with scope');
+L('Authoring','Backtest','Redraft A v2: add acct.type == individual and beneficiary.category == individual');L('Backtest','Orchestrator','A v2 passes: 0 exempt-category hits');
+const a1=M(D,R.A1);return `<p class="mu">Replay on ${D.length.toLocaleString()} synthetic transactions (30 days) in the sandbox engine.</p>
+<table><tr><th>Draft</th><th>Hits</th><th>Hit rate</th><th>Hits in exempt categories</th><th>Risky-pattern recall</th><th>Verdict</th></tr>
+<tr><td>A v1 (no scope)</td><td>${a1.h}</td><td>${pc(a1.rate)}</td><td><b style="color:var(--bad)">${a1.ex}</b></td><td>${pc(a1.rec)}</td><td><span class="b bad">Rejected by Backtest Agent</span></td></tr>
+<tr><td>A v2 (scoped)</td><td>${S.a2.h}</td><td>${pc(S.a2.rate)}</td><td>${S.a2.ex}</td><td>${pc(S.a2.rec)}</td><td><span class="b ok">Passes</span></td></tr>
+<tr><td>B v1</td><td>${M(D,R.B).h}</td><td>${pc(M(D,R.B).rate)}</td><td>${M(D,R.B).ex}</td><td>${pc(M(D,R.B).rec)}</td><td><span class="b ok">Passes</span></td></tr></table>
+<p class="mu">Sample transaction IDs flagged exempt by v1: ${D.filter(t=>R.A1(t)&&ex(t)).slice(0,3).map(t=>t.id).join(', ')}. This is the objection loop: a second agent catches the scope error before any human sees the draft.</p>`}},
+{n:'6 Impact Analysis',a:'Impact Analysis Agent',run(){const v=S.v2,v1=S.v1,days=30,vol=D.reduce((s,t)=>s+t.amt,0),hv=D.filter(V2).reduce((s,t)=>s+t.amt,0);
+L('Impact','Validation','Final ruleset (A v2 + B): '+(v.h/days).toFixed(1)+' holds/day per 400 txns');
+return `<div class="grid">${kp(pc(v.rate),'Transactions affected')}${kp((v.h/days).toFixed(1),'Holds/day (sample)')}${kp(pc(hv/vol),'Value affected')}${kp(pc(v.rec),'Risky-pattern recall')}${kp(pc(v.prec),'Precision on risky pattern')}${kp(v1.ex-v.ex,'Wrongful holds avoided vs v1')}</div>
+<p class="mu">Comparison: the unscoped draft would have wrongly touched ${v1.ex} exempt transactions (government and registered-merchant payments). Predicted production hit rate ${pc(v.rate)} is the baseline that shadow and rollout monitoring are compared against.</p>`}},
+{n:'7 Validation',a:'Validation Agent',run(){L('Validation','Orchestrator','All checks passed; packet ready for human approval');
+const row=(a,b,c)=>`<tr><td>${a}</td><td>${b}</td><td><span class="b ${c?'ok':'bad'}">${c?'Pass':'Fail'}</span></td></tr>`;
+return `<table><tr><th>Check</th><th>Detail</th><th>Result</th></tr>
+${row('Clause coverage','O1, O2, O3 enforced in rules; O4 routed to owner (4/4 handled)',1)}
+${row('Traceability','Each rule version links to clause and obligation IDs',1)}
+${row('Conflict with existing rules','R-101 and R-214 retained; new rules stricter for new beneficiaries only',1)}
+${row('Scope correctness','0 exempt-category hits in backtest',S.v2.ex==0)}
+${row('DSL syntax and sandbox run','Compiles; executes on full replay',1)}
+${row('Draft-only status','No production change made',1)}</table>`}},
+{n:'8 Human Approval',a:'Mandatory human gate',run(){return `<p>Approval packet: SYN/REG/2026/14 → rules A v2 and B v1.</p><div class="grid">${kp(pc(S.v2.rate),'Predicted hit rate')}${kp(S.v2.ex,'Exempt-category hits')}${kp('3','Obligations enforced')}${kp('Draft','Current status')}</div>
+<div class="row" style="margin-top:12px"><button class="btn" onclick="approve(1)">Approve for shadow deployment</button><button class="btn red" onclick="approve(0)">Reject with comment</button></div><p id="ap" class="mu"></p>`}},
+{n:'9 Shadow Deployment',a:'Deployment Agent',run(){const p=S.v2.rate;let rows='',mx=0;for(let d=1;d<=5;d++){const m=M(gen(400,100+d,false),V2),dv=Math.abs(m.rate-p)/p;mx=Math.max(mx,dv);rows+=`<tr><td>Day ${d}</td><td>${m.h}</td><td>${pc(m.rate)}</td><td>${pc(p)}</td><td>${pc(dv)}</td></tr>`}
+L('Deployment','Orchestrator','Shadow 5 days: max divergence '+pc(mx)+(mx<.35?', within tolerance':', exceeds tolerance'));
+return `<p class="mu">Rules evaluate live traffic but take no action. Alert if observed hit rate differs from backtest prediction by more than 35%.</p><table><tr><th>Day</th><th>Shadow hits (400 txns)</th><th>Observed rate</th><th>Predicted</th><th>Divergence</th></tr>${rows}</table><p><span class="b ${mx<.35?'ok':'bad'}">${mx<.35?'Cleared for controlled rollout':'Blocked'}</span></p>`}},
+{n:'10 Rollout & Monitoring',a:'Monitoring Agent',run(){return `<p class="mu">Controlled rollout at 5% → 25% → 100% of traffic. Rollback to the previous ruleset (R-101, R-214 only) if the hit rate drifts more than 35% from prediction.</p>
+<label class="row"><input type="checkbox" id="fault"> Inject data fault: beneficiary_age feed goes stale at the 25% stage</label>
+<div class="row" style="margin:10px 0"><button class="btn" onclick="rollout()">Run rollout</button></div><div id="ro"></div>`}}];
+function nav(){$('#nav').innerHTML=stages.map((s,i)=>`<button class="${i==S.step?'on':''} ${i<S.max?'done':''}" ${i>S.max?'disabled':''} onclick="go(${i})">${s.n}</button>`).join('')}
+function go(i){S.step=i;const s=stages[i];$('#main').innerHTML=`<div class="card"><div class="ag">${s.a}</div><h2>${s.n.replace(/^\d+ /,'')}</h2>${s.run()}${i<8?`<div class="row" style="margin-top:12px">${i>0?`<button class="btn sec" onclick="go(${i-1})">Back</button>`:''}<button class="btn" onclick="nx()">Next stage →</button></div>`:''}</div>`;nav()}
+function nx(){S.max=Math.max(S.max,S.step+1);go(S.step+1)}
+function approve(ok){if(!ok){$('#ap').innerHTML='<span class="b bad">Rejected.</span> Comment returned to Rule Authoring Agent for redraft. Nothing deployed.';L('Human','Authoring','Rejected with comment; redraft requested');return}
+L('Human','Deployment','Approved by compliance officer; proceed to shadow');S.max=Math.max(S.max,9);$('#ap').innerHTML='<span class="b ok">Approved</span> Recorded in approval history.<div class="row" style="margin-top:8px"><button class="btn" onclick="go(8)">Start shadow deployment →</button></div>'}
+function rollout(){const f=$('#fault').checked,p=S.v2.rate;let h='<table><tr><th>Stage</th><th>Traffic</th><th>Observed rate</th><th>Deviation</th><th>Status</th></tr>',rb=0;
+[5,25,100].forEach((t,i)=>{if(rb){h+=`<tr><td>${i+1}</td><td>${t}%</td><td colspan="3" class="mu">Not reached</td></tr>`;return}
+const m=M(gen(800,200+i,f&&i==1),V2),dv=Math.abs(m.rate-p)/p,bad=dv>.35;if(bad)rb=1;h+=`<tr><td>${i+1}</td><td>${t}%</td><td>${pc(m.rate)}</td><td>${pc(dv)}</td><td><span class="b ${bad?'bad':'ok'}">${bad?'Breach: rollback':'Healthy'}</span></td></tr>`;
+L('Monitoring','Orchestrator',`Stage ${t}%: deviation ${pc(dv)}`+(bad?' → ROLLBACK to previous ruleset':''))});
+$('#ro').innerHTML=h+'</table>'+(rb?'<p><span class="b bad">Rolled back automatically</span> Previous ruleset restored; alert raised with fault evidence to the human approver.</p>':'<p><span class="b ok">Rollout complete</span> Circular implemented, fully traceable from clause to live rule.</p>')}
+L('System','All','Orchestrator ready');go(0);
+</script></body></html>
